@@ -1,19 +1,17 @@
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
 public class MineSweeperGame {
     private final Scanner scanner;
     private final Random random = new Random();
-    private final List<Mine> mines = new ArrayList<>();
-    private final int [][] modifiers = {{-1, -1}, {-1,  0}, {-1,  1}, { 0, -1}, { 0,  1}, { 1, -1}, { 1,  0}, { 1,  1}};
-    private final char[][] field = new char[12][12];
     private boolean isBombExploded = false;
     private boolean isGameEnded = false;
+    private final MineField mineField;
 
     public MineSweeperGame(Scanner scanner) {
         this.scanner = scanner;
+
+        mineField = new MineField(10);
     }
 
     public void run() {
@@ -32,169 +30,57 @@ public class MineSweeperGame {
     }
 
     private void start() {
-        initializeField();
-
-        if (hasMines())
-            removeAllMines();
-
-        while (getNumberOfMines() < 10) {
-            int x = random.nextInt(10) + 1;
-            int y = random.nextInt(10) + 1;
-
-            Mine mine = new Mine(x, y);
-            if(!mines.contains(mine))
-                mines.add(mine);
-        }
+        mineField.initialize();
+        isBombExploded = false;
 
         boolean isSessionEnded = false;
-        while (!isSessionEnded && !isBombExploded && !hasPlayerWon()) {
-            drawField();
+        while (!isSessionEnded && !isBombExploded && !mineField.areAllMinesFlagged()) {
+            mineField.draw();
             printPlayerChoice();
 
             switch (getPlayerInput()) {
-                case 1 -> askFlag();
-                case 2 -> askTick();
+                case 1 -> askPlayerFlag();
+                case 2 -> askPlayerTick();
                 case 3 -> isSessionEnded = true;
                 default -> System.out.println("Wrong input.");
             }
         }
 
-        if (hasPlayerWon()) {
+        if (mineField.areAllMinesFlagged()) {
             printPlayerWon();
-        }
-    }
-    private void initializeField() {
-        for (int i = 0; i < 11; i++) {
-            for (int j = 0; j < 11; j++) {
-                field[i][j] = '.';
-            }
-        }
-    }
-    private boolean hasMines() {
-        return getNumberOfMines() > 0;
-    }
-    private int getNumberOfMines() {
-        return mines.size();
-    }
-    private void removeAllMines() {
-        mines.clear();
-    }
-    private void showAllBombs() {
-        for (int i = 0; i < getNumberOfMines(); i++) {
-            Mine mine = mines.get(i);
-            int x = mine.getX();
-            int y = mine.getY();
-
-            field[x][y] = '*';
-        }
-    }
-    private void drawField() {
-        System.out.println();
-
-        for (int i = 0; i < 10; i++) {
-            field[0][i + 1] = (char) (48 + i);
-        }
-        for (int i = 0; i < 10; i++) {
-            field[i + 1][0] = (char) (65 + i);
+            isSessionEnded = true;
         }
 
-        field[0][0] = '/';
-
-        for (int i = 0; i < 11; i++) {
-            for (int j = 0; j < 11; j++) {
-                System.out.print(field[i][j] + " ");
-            }
-            System.out.println("");
-        }
-
-        System.out.println();
-    }
-    private void flag(int x, int y) {
-        field[x][y] = 'F';
-    }
-    private void tick(int x, int y) throws ArrayIndexOutOfBoundsException {
-        isBombExploded = false;
-
-        for (int i = 0; i < getNumberOfMines(); i++) {
-            Mine mine = mines.get(i);
-            if (mine.getX() == x && mine.getY() == y) {
-                isBombExploded = true;
-                showAllBombs();
-                drawField();
-            }
-        }
-
-        if (isBombExploded) {
+        if(isBombExploded) {
             printPlayerLost();
-        } else {
-            int numberOfBombsAroundTick = 0;
-
-            for (Mine mine : mines) {
-                for (int[] modifier : modifiers) {
-                    int modX = x + modifier[0];
-                    int modY = y + modifier[1];
-                    boolean isBomb = mine.getX() == modX && mine.getY() == modY;
-
-                    if(isBomb)
-                        numberOfBombsAroundTick++;
-                }
-            }
-
-            if (numberOfBombsAroundTick > 0) {
-                field[x][y] = getDigitChar(numberOfBombsAroundTick);
-            } else if (field[x][y] == '.') {
-                field[x][y] = ' ';
-                for (int[] modifier : modifiers)
-                    tick(x + modifier[0], y + modifier[1]);
-            }
-        }
-    }
-
-    private int getNumberOfFlags() {
-        int numberOfFlags = 0;
-
-        for (int x = 1; x < 12; x++) {
-            for (int y = 1; y < 12; y++) {
-                if (field[x][y] == 'F')
-                    numberOfFlags++;
-            }
+            isSessionEnded = true;
         }
 
-        return numberOfFlags;
-    }
-    private boolean hasPlayerWon() {
-        for (int x = 1; x < 12; x++) {
-            for (int y = 1; y < 12; y++) {
-                if (field[x][y] == '.' || getNumberOfFlags() != 10) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
-    public void askFlag() {
-        int remainingFlags = 10 - getNumberOfFlags();
+    public void askPlayerFlag() {
+        int remainingFlags = 10 - mineField.getNumberOfFlags();
         System.out.println("Number of flags remaining: " + remainingFlags);
         System.out.print("Flag: ");
         String flag = scanner.next();
 
-        if (isValidPlayerInput(flag)) { // controleren of de input toegestaan is
-            int x = flag.charAt(0) - 64;
-            int y = flag.charAt(1) - 47;
-            flag(x, y);
+        if (isValidPlayerInput(flag)) {
+            int x = flag.charAt(0) - 65;
+            int y = flag.charAt(1) - 48;
+            mineField.flag(x, y);
         }
     }
-    private void askTick() {
-        String tick;
-        int x = 0, y = 0;
+    private void askPlayerTick() {
         System.out.print("Tick: ");
-        tick = scanner.next();
+        String input = scanner.next();
 
-        if (isValidPlayerInput(tick)) {
-            x = tick.charAt(0) - 64;
-            y = tick.charAt(1) - 47;
-            tick(x, y);
+        if (isValidPlayerInput(input)) {
+            int x = input.charAt(0) - 65;
+            int y = input.charAt(1) - 48;
+
+            if(mineField.tick(x, y)) {
+                isBombExploded = true;
+            }
         }
     }
     private boolean isValidPlayerInput(String input) {
@@ -258,8 +144,5 @@ public class MineSweeperGame {
         System.out.println();
     }
 
-    // Helper methods
-    private char getDigitChar(int value) {
-        return (char)(value + 48);
-    }
+
 }
